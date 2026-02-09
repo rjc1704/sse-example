@@ -6,6 +6,7 @@
 2. .env.example 을 .env 로 파일명 변경하고 환경변수를 입력해 주세요
 3. npx prisma migrate dev
 4. npm run dev
+5. public/index.html 파일을 라이브서버로 열기 (없으면 익스텐션 설치할 것)
 
 ## 설명
 
