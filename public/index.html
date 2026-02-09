@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SSE 좋아요 알림 테스트</title>
+    <style>
+      body {
+        font-family: "Arial", sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .container {
+        display: flex;
+        gap: 20px;
+      }
+      .section {
+        flex: 1;
+        padding: 20px;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+      }
+      .notification {
+        padding: 10px;
+        margin: 5px 0;
+        background-color: #f0f0f0;
+        border-radius: 4px;
+      }
+      button {
+        padding: 8px 16px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #0056b3;
+      }
+      input {
+        padding: 8px;
+        margin: 5px 0;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      label {
+        display: block;
+        margin-top: 10px;
+        margin-bottom: 5px;
+        font-weight: bold;
+        color: #333;
+        font-size: 0.9em;
+      }
+      .section > label:first-of-type {
+        margin-top: 0;
+      }
+      @keyframes slideIn {
+        from {
+          transform: translateX(-20px);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+      @keyframes pulse {
+        0%, 100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>SSE 좋아요 알림 테스트</h1>
+
+    <div style="margin-bottom: 20px; padding: 15px; background-color: #fee; border-radius: 8px; border: 2px solid #dc3545;">
+      <h3 style="margin-top: 0; color: #dc3545;">🗑️ 데이터베이스 초기화</h3>
+      <p style="font-size: 0.9em; color: #666; margin: 10px 0;">
+        ⚠️ 경고: 모든 사용자, 게시물, 좋아요 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+      </p>
+      <button onclick="resetDatabase()" style="background-color: #dc3545;">
+        모든 데이터 삭제
+      </button>
+      <div id="resetResult" style="margin-top: 10px;"></div>
+    </div>
+
+    <div style="margin-bottom: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 8px;">
+      <h3 style="margin-top: 0;">🔍 현재 사용자 목록</h3>
+      <button onclick="loadUsers()" style="background-color: #28a745;">사용자 목록 불러오기</button>
+      <div id="userList" style="margin-top: 10px;"></div>
+    </div>
+
+    <div style="margin-bottom: 20px; padding: 15px; background-color: #fff3cd; border-radius: 8px;">
+      <h3 style="margin-top: 0;">📝 현재 게시물 목록</h3>
+      <button onclick="loadPosts()" style="background-color: #ffc107; color: #000;">게시물 목록 불러오기</button>
+      <div id="postList" style="margin-top: 10px;"></div>
+    </div>
+
+    <div class="container">
+      <div class="section">
+        <h2>1️⃣ 회원가입</h2>
+        <p style="font-size: 0.9em; color: #666;">
+          먼저 2명의 사용자를 생성하세요 (user1, user2)
+        </p>
+        <label for="registerEmail">이메일</label>
+        <input
+          type="email"
+          id="registerEmail"
+          placeholder="이메일"
+          value="user1@test.com"
+        />
+        <label for="registerPassword">비밀번호</label>
+        <input
+          type="password"
+          id="registerPassword"
+          placeholder="비밀번호"
+          value="password123"
+        />
+        <button onclick="register()">회원가입</button>
+        <div id="registerResult"></div>
+      </div>
+
+      <div class="section">
+        <h2>2️⃣ 알림 받기</h2>
+        <p style="font-size: 0.9em; color: #666;">
+          회원가입한 사용자의 알림을 시작하세요
+        </p>
+        <div id="connectionStatus" style="margin-bottom: 10px; padding: 10px; border-radius: 4px; background-color: #f8f9fa; display: flex; align-items: center; gap: 8px;">
+          <span id="statusIndicator" style="width: 12px; height: 12px; border-radius: 50%; background-color: #6c757d;"></span>
+          <span id="statusText" style="font-weight: bold; color: #6c757d;">연결 안됨</span>
+        </div>
+        <label for="userId">알림을 받을 사용자 ID</label>
+        <input
+          type="number"
+          id="userId"
+          placeholder="알림을 받을 사용자 ID"
+          value=""
+        />
+        <button id="notificationButton" onclick="toggleNotifications()">알림 시작</button>
+        <div id="notifications"></div>
+      </div>
+
+      <div class="section">
+        <h2>3️⃣ 게시물 작성</h2>
+        <p style="font-size: 0.9em; color: #666;">
+          user1으로 게시물을 작성하세요
+        </p>
+        <label for="authorId">작성자 ID</label>
+        <input type="number" id="authorId" placeholder="작성자 ID" value="" />
+        <label for="postTitle">게시물 제목</label>
+        <input
+          type="text"
+          id="postTitle"
+          placeholder="게시물 제목"
+          value="테스트 게시물"
+        />
+        <label for="postContent">게시물 내용</label>
+        <input
+          type="text"
+          id="postContent"
+          placeholder="게시물 내용"
+          value="테스트 내용입니다."
+        />
+        <button onclick="createPost()">게시물 작성</button>
+      </div>
+
+      <div class="section">
+        <h2>4️⃣ 좋아요 보내기</h2>
+        <p style="font-size: 0.9em; color: #666;">
+          user2가 user1의 게시물에 좋아요를 누르세요
+        </p>
+        <label for="postId">게시물 ID</label>
+        <input type="number" id="postId" placeholder="게시물 ID" value="" />
+        <label for="likerId">좋아요 누른 사람 ID</label>
+        <input
+          type="number"
+          id="likerId"
+          placeholder="좋아요 누른 사람 ID"
+          value=""
+        />
+        <button onclick="sendLike()">좋아요 보내기</button>
+      </div>
+    </div>
+
+    <script>
+      let eventSource = null;
+
+      async function resetDatabase() {
+        const confirmed = confirm(
+          "⚠️ 정말로 모든 데이터를 삭제하시겠습니까?\n\n" +
+          "다음 데이터가 모두 삭제됩니다:\n" +
+          "- 모든 사용자\n" +
+          "- 모든 게시물\n" +
+          "- 모든 좋아요\n\n" +
+          "이 작업은 되돌릴 수 없습니다!"
+        );
+
+        if (!confirmed) {
+          return;
+        }
+
+        try {
+          const response = await fetch("http://localhost:3000/reset", {
+            method: "DELETE",
+          });
+
+          const data = await response.json();
+
+          if (response.ok) {
+            document.getElementById("resetResult").innerHTML = 
+              '<p style="color: green; font-weight: bold;">✓ 모든 데이터가 삭제되었습니다!</p>';
+            
+            // 목록들 초기화
+            document.getElementById("userList").innerHTML = '';
+            document.getElementById("postList").innerHTML = '';
+            document.getElementById("notifications").innerHTML = '';
+            document.getElementById("registerResult").innerHTML = '';
+            
+            // SSE 연결 종료 및 상태 초기화
+            if (eventSource) {
+              eventSource.close();
+              eventSource = null;
+            }
+            updateConnectionStatus("disconnected", "⚪ 연결 안됨", "#6c757d");
+            document.getElementById("notificationButton").textContent = "알림 시작";
+            document.getElementById("notificationButton").style.backgroundColor = "#007bff";
+            
+            alert("✓ 데이터베이스가 초기화되었습니다. 새로운 사용자를 등록하세요.");
+          } else {
+            document.getElementById("resetResult").innerHTML = 
+              `<p style="color: red;">✗ ${data.message}</p>`;
+          }
+        } catch (error) {
+          console.error("데이터베이스 리셋 에러:", error);
+          document.getElementById("resetResult").innerHTML = 
+            '<p style="color: red;">✗ 데이터 삭제 중 오류가 발생했습니다.</p>';
+        }
+      }
+
+      async function loadUsers() {
+        try {
+          const response = await fetch("http://localhost:3000/users");
+          const users = await response.json();
+          
+          const userListDiv = document.getElementById("userList");
+          
+          if (users.length === 0) {
+            userListDiv.innerHTML = '<p style="color: #999;">등록된 사용자가 없습니다.</p>';
+          } else {
+            userListDiv.innerHTML = `
+              <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                <thead>
+                  <tr style="background-color: #e9ecef;">
+                    <th style="padding: 8px; border: 1px solid #ddd;">ID</th>
+                    <th style="padding: 8px; border: 1px solid #ddd;">이메일</th>
+                    <th style="padding: 8px; border: 1px solid #ddd;">생성일</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${users.map(user => `
+                    <tr>
+                      <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${user.id}</td>
+                      <td style="padding: 8px; border: 1px solid #ddd;">${user.email}</td>
+                      <td style="padding: 8px; border: 1px solid #ddd;">${new Date(user.createdAt).toLocaleString('ko-KR')}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            `;
+          }
+        } catch (error) {
+          console.error("사용자 목록 로드 에러:", error);
+          document.getElementById("userList").innerHTML = 
+            '<p style="color: red;">사용자 목록을 불러오는 중 오류가 발생했습니다.</p>';
+        }
+      }
+
+      async function loadPosts() {
+        try {
+          const response = await fetch("http://localhost:3000/posts");
+          const posts = await response.json();
+          
+          const postListDiv = document.getElementById("postList");
+          
+          if (posts.length === 0) {
+            postListDiv.innerHTML = '<p style="color: #999;">작성된 게시물이 없습니다.</p>';
+          } else {
+            postListDiv.innerHTML = `
+              <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                <thead>
+                  <tr style="background-color: #e9ecef;">
+                    <th style="padding: 8px; border: 1px solid #ddd;">ID</th>
+                    <th style="padding: 8px; border: 1px solid #ddd;">제목</th>
+                    <th style="padding: 8px; border: 1px solid #ddd;">내용</th>
+                    <th style="padding: 8px; border: 1px solid #ddd;">작성자</th>
+                    <th style="padding: 8px; border: 1px solid #ddd;">좋아요</th>
+                    <th style="padding: 8px; border: 1px solid #ddd;">작성일</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${posts.map(post => `
+                    <tr>
+                      <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${post.id}</td>
+                      <td style="padding: 8px; border: 1px solid #ddd;">${post.title}</td>
+                      <td style="padding: 8px; border: 1px solid #ddd;">${post.content}</td>
+                      <td style="padding: 8px; border: 1px solid #ddd;">${post.author.email} (ID: ${post.author.id})</td>
+                      <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">❤️ ${post._count.likes}</td>
+                      <td style="padding: 8px; border: 1px solid #ddd;">${new Date(post.createdAt).toLocaleString('ko-KR')}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            `;
+          }
+        } catch (error) {
+          console.error("게시물 목록 로드 에러:", error);
+          document.getElementById("postList").innerHTML = 
+            '<p style="color: red;">게시물 목록을 불러오는 중 오류가 발생했습니다.</p>';
+        }
+      }
+
+      async function register() {
+        const email = document.getElementById("registerEmail").value;
+        const password = document.getElementById("registerPassword").value;
+
+        try {
+          const response = await fetch("http://localhost:3000/auth/register", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ email, password }),
+          });
+
+          const data = await response.json();
+          
+          if (response.ok) {
+            document.getElementById("registerResult").innerHTML = 
+              `<span style="color: green;">✓ 회원가입 성공! 사용자 ID: ${data.userId}</span>`;
+            
+            // 첫 번째 사용자 (user1) 회원가입 시
+            if (data.userId === 1) {
+              document.getElementById("userId").value = data.userId;  // 알림 받기
+              document.getElementById("authorId").value = data.userId;  // 게시물 작성자
+            }
+            // 두 번째 사용자 (user2) 회원가입 시
+            else if (data.userId === 2) {
+              document.getElementById("likerId").value = data.userId;  // 좋아요 누른 사람
+            }
+            
+            // 사용자 목록 자동 갱신
+            loadUsers();
+          } else {
+            document.getElementById("registerResult").innerHTML = 
+              `<span style="color: red;">✗ ${data.message}</span>`;
+          }
+        } catch (error) {
+          console.error("회원가입 에러:", error);
+          document.getElementById("registerResult").innerHTML = 
+            '<span style="color: red;">✗ 회원가입 중 오류가 발생했습니다.</span>';
+        }
+      }
+
+      function updateConnectionStatus(status, text, color) {
+        const indicator = document.getElementById("statusIndicator");
+        const statusText = document.getElementById("statusText");
+        
+        indicator.style.backgroundColor = color;
+        statusText.textContent = text;
+        statusText.style.color = color;
+      }
+
+      function toggleNotifications() {
+        if (eventSource) {
+          // 연결 중이면 종료
+          stopNotifications();
+        } else {
+          // 연결 안 되어 있으면 시작
+          startNotifications();
+        }
+      }
+
+      function startNotifications() {
+        const userId = document.getElementById("userId").value;
+
+        if (!userId) {
+          alert("사용자 ID를 입력하세요.");
+          return;
+        }
+
+        // 기존 연결이 있다면 닫기
+        if (eventSource) {
+          eventSource.close();
+        }
+
+        // 연결 중 상태 표시
+        updateConnectionStatus("connecting", "연결 중...", "#ffc107");
+        document.getElementById("notificationButton").textContent = "연결 중...";
+        document.getElementById("notificationButton").disabled = true;
+
+        // 새로운 SSE 연결 생성
+        eventSource = new EventSource(
+          `http://localhost:3000/notifications/${userId}`,
+        );
+
+        eventSource.onopen = () => {
+          // 연결 성공
+          updateConnectionStatus("connected", "🟢 연결됨", "#28a745");
+          document.getElementById("notificationButton").textContent = "알림 중단";
+          document.getElementById("notificationButton").disabled = false;
+          document.getElementById("notificationButton").style.backgroundColor = "#dc3545";
+        };
+
+        eventSource.onmessage = (event) => {
+          const notification = JSON.parse(event.data);
+          const notificationsDiv = document.getElementById("notifications");
+          const notificationElement = document.createElement("div");
+          notificationElement.className = "notification";
+          notificationElement.innerHTML = `
+            <strong>${notification.type === 'like' ? '❤️' : '📢'} ${notification.message}</strong><br>
+            <small>${new Date().toLocaleTimeString('ko-KR')}</small>
+          `;
+          notificationsDiv.prepend(notificationElement);
+          
+          // 알림 애니메이션 효과
+          notificationElement.style.animation = "slideIn 0.3s ease-out";
+        };
+
+        eventSource.onerror = (error) => {
+          console.error("SSE 에러:", error);
+          updateConnectionStatus("error", "❌ 연결 끊김", "#dc3545");
+          document.getElementById("notificationButton").textContent = "알림 시작";
+          document.getElementById("notificationButton").disabled = false;
+          document.getElementById("notificationButton").style.backgroundColor = "#007bff";
+          
+          if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+          }
+        };
+      }
+
+      function stopNotifications() {
+        if (eventSource) {
+          eventSource.close();
+          eventSource = null;
+        }
+        
+        updateConnectionStatus("disconnected", "⚪ 연결 안됨", "#6c757d");
+        document.getElementById("notificationButton").textContent = "알림 시작";
+        document.getElementById("notificationButton").style.backgroundColor = "#007bff";
+      }
+
+      async function createPost() {
+        const authorId = document.getElementById("authorId").value;
+        const title = document.getElementById("postTitle").value;
+        const content = document.getElementById("postContent").value;
+
+        if (!authorId || !title || !content) {
+          alert("모든 필드를 입력하세요.");
+          return;
+        }
+
+        try {
+          const response = await fetch("http://localhost:3000/posts", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              authorId: parseInt(authorId),
+              title,
+              content,
+            }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            alert(`게시물이 생성되었습니다! (ID: ${data.id})`);
+            // 게시물 목록 자동 갱신
+            loadPosts();
+            // 게시물 ID 필드에 자동으로 채우기 (좋아요 테스트용)
+            document.getElementById("postId").value = data.id;
+          } else {
+            const errorData = await response.json();
+            alert(`게시물 생성 실패: ${errorData.message}`);
+          }
+        } catch (error) {
+          console.error("게시물 생성 에러:", error);
+          alert("게시물 생성 중 오류가 발생했습니다.");
+        }
+      }
+
+      async function sendLike() {
+        const postId = document.getElementById("postId").value;
+        const userId = document.getElementById("likerId").value;
+
+        if (!postId || !userId) {
+          alert("게시물 ID와 사용자 ID를 입력하세요.");
+          return;
+        }
+
+        try {
+          const response = await fetch(
+            `http://localhost:3000/posts/${postId}/like`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                userId: parseInt(userId),
+              }),
+            },
+          );
+
+          if (response.ok) {
+            const data = await response.json();
+            alert("좋아요가 전송되었습니다!");
+            // 게시물 목록 자동 갱신 (좋아요 개수 업데이트)
+            loadPosts();
+          } else {
+            const errorData = await response.json();
+            alert(`좋아요 전송 실패: ${errorData.message}`);
+          }
+        } catch (error) {
+          console.error("좋아요 전송 에러:", error);
+          alert("좋아요 전송 중 오류가 발생했습니다.");
+        }
+      }
+    </script>
+  </body>
+</html>
